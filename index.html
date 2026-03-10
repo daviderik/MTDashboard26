@@ -247,14 +247,20 @@
                 await signInAnonymously(auth);
             } catch (e) {
                 console.error("Firebase auth failed:", e);
-                // Help user identify authorized domain issues
+                const syncEl = document.getElementById('syncStatus');
+                syncEl.className = "text-red-600 font-black text-xl uppercase tracking-tighter underline cursor-help";
+                
+                // Detailed diagnostic mapping
                 if (e.code === 'auth/unauthorized-domain') {
-                    document.getElementById('syncStatus').innerText = "Domain Blocked";
-                    document.getElementById('syncStatus').title = `Add ${window.location.hostname} to Authorized Domains in Firebase Settings.`;
+                    syncEl.innerText = "Domain Blocked";
+                    syncEl.title = `Domain [${window.location.hostname}] is not authorized in Firebase Console > Authentication > Settings.`;
+                } else if (e.code === 'auth/operation-not-allowed') {
+                    syncEl.innerText = "Auth Disabled";
+                    syncEl.title = "Anonymous Auth provider is not enabled in Firebase Console.";
                 } else {
-                    document.getElementById('syncStatus').innerText = "Offline";
+                    syncEl.innerText = "Auth Error";
+                    syncEl.title = e.message;
                 }
-                document.getElementById('syncStatus').className = "text-red-600 font-black text-xl uppercase tracking-tighter underline cursor-help";
             }
         }
 
@@ -269,9 +275,10 @@
                 }
             }, (error) => {
                 console.error("Sync error:", error);
-                document.getElementById('syncStatus').innerText = "Rules Error";
-                document.getElementById('syncStatus').title = "Check your Firestore Rules tab.";
-                document.getElementById('syncStatus').className = "text-red-600 font-black text-xl uppercase tracking-tighter underline cursor-help";
+                const syncEl = document.getElementById('syncStatus');
+                syncEl.innerText = "Rules Error";
+                syncEl.title = "Permission denied. Check Firestore Rules tab.";
+                syncEl.className = "text-red-600 font-black text-xl uppercase tracking-tighter underline cursor-help";
             });
         };
 

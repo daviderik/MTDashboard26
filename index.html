@@ -25,7 +25,6 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* High Contrast Light Mode Active Tab */
         .tab-active { 
             background-color: #0f172a; 
             border-color: #1e1b4b; 
@@ -34,7 +33,6 @@
             box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.5);
         }
 
-        /* Dark Mode Active Tab */
         .dark .tab-active {
             background-color: #312e81;
             border-color: #6366f1;
@@ -69,7 +67,7 @@
                     </button>
                 </div>
                 <h1 class="text-4xl md:text-7xl font-black text-slate-950 dark:text-white tracking-tighter uppercase leading-none mb-3">
-                    Magna-Tiles <span class="text-slate-400 dark:text-slate-500 font-thin italic">2026 Production</span>
+                    <span id="headerClientName">Magna-Tiles</span> <span id="headerYear" class="text-slate-400 dark:text-slate-500 font-thin italic">2026 Production</span>
                 </h1>
                 <p class="text-slate-900 dark:text-slate-400 font-extrabold uppercase text-sm tracking-widest">Master View • Comprehensive Portfolio Cycle</p>
             </div>
@@ -78,12 +76,12 @@
                 <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border-2 border-slate-950 dark:border-slate-800 shadow-xl flex gap-6 items-center">
                     <div class="text-center">
                         <span class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Products</span>
-                        <span class="text-slate-950 dark:text-white font-black text-3xl">18</span>
+                        <span id="totalProductCount" class="text-slate-950 dark:text-white font-black text-3xl">18</span>
                     </div>
                     <div class="w-px h-12 bg-slate-950 dark:bg-slate-800"></div>
                     <div class="text-center">
-                        <span class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Status</span>
-                        <span class="text-indigo-900 dark:text-indigo-400 font-black text-xl uppercase tracking-tighter">Live Log</span>
+                        <span class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Network</span>
+                        <span id="syncStatus" class="text-slate-400 font-black text-xl uppercase tracking-tighter">Syncing...</span>
                     </div>
                 </div>
                 <button onclick="window.print()" class="bg-slate-950 dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-widest px-8 py-5 rounded-2xl hover:bg-slate-800 dark:hover:bg-slate-200 transition-all shadow-xl flex items-center justify-center gap-2">
@@ -116,8 +114,6 @@
         </nav>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
-            
-            <!-- Main Content -->
             <div class="lg:col-span-2 space-y-8">
                 <div class="flex items-center justify-between px-2">
                     <h2 id="viewTitle" class="text-3xl font-black text-slate-950 dark:text-white uppercase tracking-tight flex items-center gap-3">
@@ -125,13 +121,9 @@
                         Full Production Log
                     </h2>
                 </div>
-
-                <div id="productList" class="space-y-5">
-                    <!-- Rendered by JS -->
-                </div>
+                <div id="productList" class="space-y-5"></div>
             </div>
 
-            <!-- Side Panel -->
             <aside class="space-y-6">
                 <div class="bg-white dark:bg-indigo-950/10 border-2 border-slate-950 dark:border-indigo-500/20 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden sticky top-10">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-16 -mt-16"></div>
@@ -144,7 +136,7 @@
 
                     <div class="mt-12 pt-8 border-t-2 border-slate-200 dark:border-indigo-500/10">
                         <p class="text-[11px] text-slate-600 dark:text-slate-500 leading-relaxed italic font-black">
-                            Internal Reference Code: Phase1-MGT-2026. Browser-cached tracking enabled.
+                            Internal Reference Code: Phase1-MGT-2026. Global Cloud Sync Enabled.
                         </p>
                     </div>
                 </div>
@@ -157,7 +149,31 @@
         🎉 Production Wrapped
     </div>
 
-    <script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- FIREBASE CONFIG (Pre-filled with your credentials) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBJdFbuzW_ywm2Q5QAEifYBNsOXqOetJM",
+            authDomain: "mtdashboard-6500c.firebaseapp.com",
+            projectId: "mtdashboard-6500c",
+            storageBucket: "mtdashboard-6500c.firebasestorage.app",
+            messagingSenderId: "1004082539822",
+            appId: "1:1004082539822:web:9888a9e7868024eb2f9ebf"
+        };
+
+        // --- DASHBOARD CONFIGURATION ---
+        const CONFIG = {
+            clientName: "Magna-Tiles",
+            productionYear: "2026",
+            unitCall: "07:00 AM",
+            monthName: "MARCH",
+            appIdentifier: "mtdashboard-mgt-v1" 
+        };
+
         const scheduleData = [
             {
                 date: "March 12", day: "1", location: "Dining Room",
@@ -209,25 +225,67 @@
             }
         ];
 
+        // --- FIREBASE INITIALIZATION ---
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
         let currentView = 'master'; 
-        let completedProducts = JSON.parse(localStorage.getItem('mgt_completed_items')) || [];
-        
-        if (localStorage.getItem('mgt_theme') === 'light') {
-            document.documentElement.classList.remove('dark');
-        }
+        let completedProducts = [];
+
+        // START AUTH
+        const initAuth = async () => {
+            try {
+                await signInAnonymously(auth);
+            } catch (e) {
+                console.error("Auth failed:", e);
+                document.getElementById('syncStatus').innerText = "Offline";
+                document.getElementById('syncStatus').className = "text-red-600 font-black text-xl uppercase tracking-tighter";
+            }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('syncStatus').innerText = "Live";
+                document.getElementById('syncStatus').className = "text-emerald-600 font-black text-xl uppercase tracking-tighter";
+                startSync();
+            }
+        });
+
+        const startSync = () => {
+            // Document path follows strict rules for the environment
+            const docRef = doc(db, 'artifacts', CONFIG.appIdentifier, 'public', 'data', 'checklists', 'production_state');
+            onSnapshot(docRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    completedProducts = snapshot.data().completedIds || [];
+                } else {
+                    setDoc(docRef, { completedIds: [] });
+                    completedProducts = [];
+                }
+                updateUI();
+            }, (error) => {
+                console.error("Firestore error:", error);
+                document.getElementById('syncStatus').innerText = "Sync Error";
+            });
+        };
+
+        window.toggleProduct = async (id) => {
+            if (!auth.currentUser) return;
+            const docRef = doc(db, 'artifacts', CONFIG.appIdentifier, 'public', 'data', 'checklists', 'production_state');
+            
+            let newList = completedProducts.includes(id) 
+                ? completedProducts.filter(item => item !== id) 
+                : [...completedProducts, id];
+            
+            try {
+                await setDoc(docRef, { completedIds: newList });
+            } catch (e) {
+                console.error("Update failed:", e);
+            }
+        };
 
         function setDay(view) {
             currentView = view;
-            updateUI();
-        }
-
-        function toggleProduct(id) {
-            if (completedProducts.includes(id)) {
-                completedProducts = completedProducts.filter(item => item !== id);
-            } else {
-                completedProducts.push(id);
-            }
-            localStorage.setItem('mgt_completed_items', JSON.stringify(completedProducts));
             updateUI();
         }
 
@@ -238,11 +296,8 @@
             document.getElementById('progressText').innerText = `${percent}%`;
 
             const toast = document.getElementById('wrapToast');
-            if (percent === 100) {
-                toast.classList.remove('opacity-0', 'translate-y-20');
-            } else {
-                toast.classList.add('opacity-0', 'translate-y-20');
-            }
+            if (percent === 100) toast.classList.remove('opacity-0', 'translate-y-20');
+            else toast.classList.add('opacity-0', 'translate-y-20');
 
             const nav = document.getElementById('dateNav');
             const masterBtn = document.getElementById('masterBtn');
@@ -259,12 +314,14 @@
             
             scheduleData.forEach((day, i) => {
                 const btn = document.getElementById(`dayBtn-${i}`);
-                btn.className = `flex-shrink-0 px-8 py-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center min-w-[130px] ${currentView === i ? 'tab-active' : 'bg-white dark:bg-slate-900 border-slate-950 dark:border-slate-800 text-slate-950 dark:text-slate-500 hover:border-slate-950 dark:hover:border-slate-600 shadow-sm'}`;
-                btn.innerHTML = `
-                    <span class="text-[10px] uppercase font-black mb-1 opacity-60">Day ${day.day}</span>
-                    <span class="text-xl font-black">${day.date.split(' ')[1]}</span>
-                    <span class="text-[10px] uppercase font-bold tracking-widest">MARCH</span>
-                `;
+                if (btn) {
+                    btn.className = `flex-shrink-0 px-8 py-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center min-w-[130px] ${currentView === i ? 'tab-active' : 'bg-white dark:bg-slate-900 border-slate-950 dark:border-slate-800 text-slate-950 dark:text-slate-500 hover:border-slate-950 dark:hover:border-slate-600 shadow-sm'}`;
+                    btn.innerHTML = `
+                        <span class="text-[10px] uppercase font-black mb-1 opacity-60">Day ${day.day}</span>
+                        <span class="text-xl font-black">${day.date.split(' ')[1]}</span>
+                        <span class="text-[10px] uppercase font-bold tracking-widest">${CONFIG.monthName}</span>
+                    `;
+                }
             });
 
             const list = document.getElementById('productList');
@@ -272,29 +329,19 @@
             list.innerHTML = '';
 
             let productsToShow = [];
-            let videoCount = 0;
-            let photoCount = 0;
+            let videoCount = 0; let photoCount = 0;
 
             if (currentView === 'master') {
                 title.innerText = "Full Production Log";
-                scheduleData.forEach(day => {
-                    day.products.forEach(p => {
-                        productsToShow.push({...p, date: day.date});
-                        if (p.type.includes("Video")) videoCount++;
-                        else photoCount++;
-                    });
-                });
+                scheduleData.forEach(day => day.products.forEach(p => productsToShow.push({...p, date: day.date})));
             } else {
                 const dayData = scheduleData[currentView];
                 title.innerText = `${dayData.date} Objectives`;
                 productsToShow = dayData.products.map(p => ({...p, date: dayData.date}));
-                dayData.products.forEach(p => {
-                    if (p.type.includes("Video")) videoCount++;
-                    else photoCount++;
-                });
             }
 
             productsToShow.forEach(p => {
+                if (p.type.includes("Video")) videoCount++; else photoCount++;
                 const isCompleted = completedProducts.includes(p.id);
                 const isPhotoOnly = p.type.includes("Photo Only");
                 
@@ -304,7 +351,7 @@
                 div.innerHTML = `
                     <div class="flex items-start gap-8">
                         <div class="flex-shrink-0 pt-1 no-print">
-                            <input type="checkbox" ${isCompleted ? 'checked' : ''} onclick="toggleProduct('${p.id}')" class="w-8 h-8 rounded-lg border-2 border-slate-950 dark:border-slate-700 bg-transparent text-slate-950 dark:text-indigo-600 focus:ring-slate-950 cursor-pointer transition-transform hover:scale-110">
+                            <input type="checkbox" ${isCompleted ? 'checked' : ''} class="checkbox-input w-8 h-8 rounded-lg border-2 border-slate-950 dark:border-slate-700 bg-transparent text-slate-950 dark:text-indigo-600 focus:ring-slate-950 cursor-pointer transition-transform hover:scale-110">
                         </div>
                         <div class="flex-1">
                             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
@@ -323,48 +370,31 @@
                         </div>
                     </div>
                 `;
+                div.querySelector('.checkbox-input').onclick = () => toggleProduct(p.id);
                 list.appendChild(div);
             });
 
-            const logBox = document.getElementById('logisticsInfo');
             const loc = currentView === 'master' ? "Variable Location" : scheduleData[currentView].location;
-            logBox.innerHTML = `
+            document.getElementById('logisticsInfo').innerHTML = `
                 <div class="flex gap-7">
                     <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-slate-950 dark:bg-indigo-500/20 flex items-center justify-center text-white dark:text-indigo-400 shadow-xl border-2 border-slate-950">
                         <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
                     </div>
-                    <div>
-                        <span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Active Set</span>
-                        <span class="text-slate-950 dark:text-white font-extrabold text-xl leading-tight">${loc}</span>
-                    </div>
+                    <div><span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Active Set</span><span class="text-slate-950 dark:text-white font-extrabold text-xl leading-tight">${loc}</span></div>
                 </div>
                 <div class="flex gap-7">
-                    <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-950 dark:text-slate-300 border-2 border-slate-950 dark:border-slate-700 shadow-md">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    </div>
-                    <div>
-                        <span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Unit Call</span>
-                        <span class="text-slate-950 dark:text-white font-extrabold text-xl uppercase tracking-tighter">07:00 AM</span>
-                    </div>
+                    <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-950 dark:text-slate-300 border-2 border-slate-950 dark:border-slate-700 shadow-md"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                    <div><span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Unit Call</span><span class="text-slate-950 dark:text-white font-extrabold text-xl uppercase tracking-tighter">${CONFIG.unitCall}</span></div>
                 </div>
                 <div class="flex gap-7">
                     <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-950 dark:text-slate-400">
-                        <span class="text-lg font-black">${videoCount}</span>
-                        <span class="text-[8px] font-black uppercase">Video</span>
+                        <span class="text-lg font-black">${videoCount}</span><span class="text-[8px] font-black uppercase">Video</span>
                     </div>
-                    <div>
-                        <span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Day Assets</span>
-                        <span class="text-slate-950 dark:text-white font-extrabold text-lg leading-tight">${photoCount} Photo Units</span>
-                    </div>
+                    <div><span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Day Assets</span><span class="text-slate-950 dark:text-white font-extrabold text-lg leading-tight">${photoCount} Photo Units</span></div>
                 </div>
                 <div class="flex gap-7">
-                    <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-indigo-900 dark:bg-indigo-500/20 flex items-center justify-center text-white dark:text-indigo-400 border-2 border-indigo-900">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                    </div>
-                    <div>
-                        <span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Current Status</span>
-                        <span class="text-indigo-900 dark:text-indigo-400 font-black text-xl uppercase tracking-tighter">${percent === 100 ? 'WRAPPED' : 'ACTIVE'}</span>
-                    </div>
+                    <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-indigo-900 dark:bg-indigo-500/20 flex items-center justify-center text-white dark:text-indigo-400 border-2 border-indigo-900"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+                    <div><span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Current Status</span><span class="text-indigo-900 dark:text-indigo-400 font-black text-xl uppercase tracking-tighter">${percent === 100 ? 'WRAPPED' : 'ACTIVE'}</span></div>
                 </div>
             `;
         }
@@ -375,7 +405,9 @@
             localStorage.setItem('mgt_theme', isDark ? 'dark' : 'light');
         });
 
-        updateUI();
+        initAuth();
+        document.getElementById('headerClientName').innerText = CONFIG.clientName;
+        document.getElementById('headerYear').innerText = `${CONFIG.productionYear} Production`;
     </script>
 </body>
 </html>

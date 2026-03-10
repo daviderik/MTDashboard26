@@ -81,7 +81,7 @@
                     <div class="w-px h-12 bg-slate-950 dark:bg-slate-800"></div>
                     <div class="text-center min-w-[110px]">
                         <span class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Network</span>
-                        <span id="syncStatus" class="text-slate-400 font-black text-xl uppercase tracking-tighter">Initializing</span>
+                        <span id="syncStatus" class="text-slate-400 font-black text-xl uppercase tracking-tighter">Syncing</span>
                     </div>
                 </div>
                 <button onclick="window.print()" class="bg-slate-950 dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-widest px-8 py-5 rounded-2xl hover:bg-slate-800 dark:hover:bg-slate-200 transition-all shadow-xl flex items-center justify-center gap-2">
@@ -220,7 +220,7 @@
         let currentView = 'master'; 
         let completedProducts = [];
 
-        // STARTUP
+        // STARTUP SEQUENCE
         window.addEventListener('load', () => {
             document.getElementById('headerClientName').innerText = CONFIG.clientName;
             document.getElementById('headerYear').innerText = `${CONFIG.productionYear} Production`;
@@ -228,6 +228,16 @@
             // Immediate forced render so user sees products even if network is pending
             updateUI(); 
             initFirebase();
+
+            // Set a fallback if initializing hangs (usually due to Firebase script issues or domain blocks)
+            setTimeout(() => {
+                const syncEl = document.getElementById('syncStatus');
+                if (syncEl && syncEl.innerText === "Initializing") {
+                    syncEl.innerText = "Check Connection";
+                    syncEl.className = "text-amber-500 font-black text-xl uppercase tracking-tighter cursor-help";
+                    syncEl.title = "Connection is taking longer than expected. Check Firebase settings or whitelist domain.";
+                }
+            }, 6000);
         });
 
         async function initFirebase() {
@@ -247,18 +257,17 @@
 
                 await signInAnonymously(auth);
             } catch (e) {
-                console.error("Firebase startup error:", e);
+                console.error("Firebase auth failed:", e);
                 syncEl.className = "text-red-600 font-black text-xl uppercase tracking-tighter underline cursor-help";
                 
-                // Detailed diagnostic mapping
                 if (e.code === 'auth/unauthorized-domain') {
-                    syncEl.innerText = "Domain Locked";
+                    syncEl.innerText = "Domain Blocked";
                     syncEl.title = `Domain [${window.location.hostname}] must be whitelisted in Firebase Settings > Authorized Domains.`;
                 } else if (e.code === 'auth/operation-not-allowed') {
                     syncEl.innerText = "Auth Disabled";
                     syncEl.title = "Anonymous Auth must be toggled ENABLED in Firebase Console.";
                 } else {
-                    syncEl.innerText = `Error (${e.code || 'Unk'})`;
+                    syncEl.innerText = `Auth Error`;
                     syncEl.title = e.message || "Unknown Connection Error";
                 }
             }
@@ -284,9 +293,154 @@
         };
 
         window.toggleProduct = async (id) => {
-            // Local update for immediate feedback UI-wise
             if (completedProducts.includes(id)) {
                 completedProducts = completedProducts.filter(item => item !== id);
             } else {
                 completedProducts.push(id);
             }
+            updateUI(); // Local feedback
+
+            if (auth && auth.currentUser) {
+                const docRef = doc(db, 'artifacts', CONFIG.appIdentifier, 'public', 'data', 'checklists', 'production_state');
+                try {
+                    await setDoc(docRef, { completedIds: completedProducts });
+                } catch (e) {
+                    console.error("Update cloud failed:", e);
+                }
+            }
+        };
+
+        window.setDay = (view) => {
+            currentView = view;
+            updateUI();
+        };
+
+        // --- UI RENDERING LOGIC ---
+        function updateUI() {
+            const totalProducts = scheduleData.reduce((acc, day) => acc + day.products.length, 0);
+            const totalProductsEl = document.getElementById('totalProductCount');
+            if (totalProductsEl) totalProductsEl.innerText = totalProducts;
+
+            const percent = Math.round((completedProducts.length / totalProducts) * 100);
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            if (progressBar) progressBar.style.width = `${percent}%`;
+            if (progressText) progressText.innerText = `${percent}%`;
+
+            if (percent === 100) document.getElementById('wrapToast').classList.remove('opacity-0', 'translate-y-20');
+            else document.getElementById('wrapToast').classList.add('opacity-0', 'translate-y-20');
+
+            // Update Navigation state
+            const nav = document.getElementById('dateNav');
+            const mBtn = document.getElementById('masterBtn');
+            if (mBtn) {
+                mBtn.className = `flex-shrink-0 px-8 py-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center min-w-[140px] ${currentView === 'master' ? 'tab-active' : 'bg-white dark:bg-slate-900 border-slate-950 dark:border-slate-800 text-slate-950 dark:text-slate-500 shadow-sm'}`;
+            }
+            
+            // Re-render Day Buttons if container exists and is empty
+            if (nav && nav.children.length === 2) {
+                scheduleData.forEach((day, i) => {
+                    const btn = document.createElement('button');
+                    btn.id = `dayBtn-${i}`;
+                    btn.onclick = () => setDay(i);
+                    nav.appendChild(btn);
+                });
+            }
+            
+            scheduleData.forEach((day, i) => {
+                const btn = document.getElementById(`dayBtn-${i}`);
+                if (btn) {
+                    btn.className = `flex-shrink-0 px-8 py-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center min-w-[130px] ${currentView === i ? 'tab-active' : 'bg-white dark:bg-slate-900 border-slate-950 dark:border-slate-800 text-slate-950 dark:text-slate-500 hover:border-slate-950 dark:hover:border-slate-600 shadow-sm'}`;
+                    btn.innerHTML = `<span class="text-[10px] uppercase font-black mb-1 opacity-60">Day ${day.day}</span><span class="text-xl font-black">${day.date.split(' ')[1]}</span><span class="text-[10px] uppercase font-bold tracking-widest">${CONFIG.monthName}</span>`;
+                }
+            });
+
+            // Re-render Product List
+            const list = document.getElementById('productList');
+            if (!list) return;
+            list.innerHTML = '';
+            
+            let productsToShow = [];
+            let videoCount = 0; 
+            let photoCount = 0;
+
+            if (currentView === 'master') {
+                const vTitle = document.getElementById('viewTitle');
+                if (vTitle) vTitle.innerText = "Full Production Log";
+                scheduleData.forEach(day => day.products.forEach(p => productsToShow.push({...p, date: day.date})));
+            } else {
+                const dayData = scheduleData[currentView];
+                const vTitle = document.getElementById('viewTitle');
+                if (vTitle) vTitle.innerText = `${dayData.date} Objectives`;
+                productsToShow = dayData.products.map(p => ({...p, date: dayData.date}));
+            }
+
+            productsToShow.forEach(p => {
+                if (p.type.includes("Video")) videoCount++; else photoCount++;
+                const isCompleted = completedProducts.includes(p.id);
+                const isPhotoOnly = p.type.includes("Photo Only");
+                const div = document.createElement('div');
+                div.className = `print-card group relative bg-white dark:bg-slate-900/40 border-2 ${isPhotoOnly && !isCompleted ? 'border-red-600/50' : 'border-slate-200 dark:border-slate-800'} rounded-[2rem] p-8 transition-all duration-300 shadow-sm ${isCompleted ? 'completed-card' : 'hover:shadow-2xl hover:border-slate-950 dark:hover:border-indigo-500/40'}`;
+                
+                div.innerHTML = `
+                    <div class="flex items-start gap-8">
+                        <div class="flex-shrink-0 pt-1 no-print">
+                            <input type="checkbox" ${isCompleted ? 'checked' : ''} class="checkbox-input w-8 h-8 rounded-lg border-2 border-slate-950 dark:border-slate-700 bg-transparent text-slate-950 dark:text-indigo-600 focus:ring-slate-950 cursor-pointer transition-transform hover:scale-110">
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
+                                <h3 class="text-2xl font-black text-slate-950 dark:text-white group-hover:text-indigo-900 dark:group-hover:text-indigo-400 transition-colors uppercase tracking-tight leading-none">${p.name}</h3>
+                                <div class="flex items-center gap-2">
+                                    ${currentView === 'master' ? `<span class="text-[9px] font-black bg-slate-200 dark:bg-slate-800 px-2 py-1 rounded-md text-slate-900 dark:text-slate-500">${p.date}</span>` : ''}
+                                    <span class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.2em] px-3.5 py-2 rounded-xl ${isPhotoOnly ? 'bg-red-500/10 text-red-700 border-2 border-red-600/30' : 'bg-slate-950 dark:bg-indigo-500 text-white dark:text-slate-900 shadow-lg shadow-slate-900/10'}">
+                                        ${isPhotoOnly ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>' : ''}
+                                        ${p.type}
+                                    </span>
+                                </div>
+                            </div>
+                            <p class="text-slate-950 dark:text-slate-400 text-base leading-relaxed italic font-bold border-l-4 ${isPhotoOnly ? 'border-red-600/30' : 'border-slate-950 dark:border-slate-800'} pl-5 py-2">"${p.focus}"</p>
+                        </div>
+                    </div>`;
+                
+                const input = div.querySelector('.checkbox-input');
+                if (input) input.onclick = () => window.toggleProduct(p.id);
+                list.appendChild(div);
+            });
+
+            // Update Logistical sidebar panel
+            const loc = currentView === 'master' ? "Variable Location" : scheduleData[currentView].location;
+            const logPanel = document.getElementById('logisticsInfo');
+            if (logPanel) {
+                logPanel.innerHTML = `
+                    <div class="flex gap-7">
+                        <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-slate-950 dark:bg-indigo-500/20 flex items-center justify-center text-white dark:text-indigo-400 shadow-xl border-2 border-slate-950"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>
+                        <div><span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Active Set</span><span class="text-slate-950 dark:text-white font-extrabold text-xl leading-tight">${loc}</span></div>
+                    </div>
+                    <div class="flex gap-7">
+                        <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-950 dark:text-slate-300 border-2 border-slate-950 dark:border-slate-700 shadow-md"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                        <div><span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Unit Call</span><span class="text-slate-950 dark:text-white font-extrabold text-xl uppercase tracking-tighter">${CONFIG.unitCall}</span></div>
+                    </div>
+                    <div class="flex gap-7">
+                        <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-950 dark:text-slate-400">
+                            <span class="text-lg font-black">${videoCount}</span><span class="text-[8px] font-black uppercase">Video</span>
+                        </div>
+                        <div><span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Day Assets</span><span class="text-slate-950 dark:text-white font-extrabold text-lg leading-tight">${photoCount} Photo Units</span></div>
+                    </div>
+                `;
+            }
+        }
+
+        // --- GLOBAL EXPOSURE ---
+        window.setDay = setDay;
+        window.toggleProduct = toggleProduct;
+
+        const tToggle = document.getElementById('themeToggle');
+        if (tToggle) {
+            tToggle.addEventListener('click', () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('mgt_theme', isDark ? 'dark' : 'light');
+            });
+        }
+    </script>
+</body>
+</html>

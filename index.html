@@ -79,9 +79,9 @@
                         <span id="totalProductCount" class="text-slate-950 dark:text-white font-black text-3xl">18</span>
                     </div>
                     <div class="w-px h-12 bg-slate-950 dark:bg-slate-800"></div>
-                    <div class="text-center min-w-[120px]">
+                    <div class="text-center min-w-[140px]">
                         <span class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Network</span>
-                        <span id="syncStatus" class="text-slate-400 font-black text-xl uppercase tracking-tighter leading-none">Scanning</span>
+                        <span id="syncStatus" class="text-slate-400 font-black text-[12px] uppercase tracking-tighter leading-none">Scanning...</span>
                     </div>
                 </div>
                 <button onclick="window.print()" class="bg-slate-950 dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-widest px-8 py-5 rounded-2xl hover:bg-slate-800 dark:hover:bg-slate-200 transition-all shadow-xl flex items-center justify-center gap-2">
@@ -147,9 +147,9 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- FIREBASE CONFIG (Verified from your screenshots) ---
+        // --- FIREBASE CONFIG (Verified credentials) ---
         const firebaseConfig = {
-            apiKey: "AIzaSyBJdFbuzW_ywm2Q5QAEifYBNsOXqOetJM",
+            apiKey: "AIzaSyBJdFbuhzW_ywm2Q5QAEifYBNsOXqOetJM",
             authDomain: "mtdashboard-6500c.firebaseapp.com",
             projectId: "mtdashboard-6500c",
             storageBucket: "mtdashboard-6500c.firebasestorage.app",
@@ -221,7 +221,7 @@
         let currentView = 'master'; 
         let completedProducts = [];
 
-        // STARTUP
+        // STARTUP SEQUENCE
         window.addEventListener('load', () => {
             document.getElementById('headerClientName').innerText = CONFIG.clientName;
             document.getElementById('headerYear').innerText = `${CONFIG.productionYear} Production`;
@@ -247,9 +247,15 @@
                 await signInAnonymously(auth);
             } catch (e) {
                 console.error("Firebase auth failed:", e);
-                syncEl.className = "text-slate-400 font-black text-xl uppercase tracking-tighter leading-none cursor-help";
-                syncEl.innerText = "Local";
-                syncEl.title = "Cloud sync in standby. Using local session data.";
+                syncEl.className = "text-red-600 font-black text-[11px] uppercase tracking-tighter underline cursor-help leading-none";
+                
+                // Show raw error code to remove guesswork
+                if (e.code) {
+                    syncEl.innerText = `ERR: ${e.code.replace('auth/', '').toUpperCase()}`;
+                    syncEl.title = e.message;
+                } else {
+                    syncEl.innerText = "Auth Error";
+                }
             }
         }
 
@@ -266,7 +272,7 @@
                 }
             }, (error) => {
                 console.error("Sync error:", error);
-                syncEl.innerText = "Sync Error";
+                syncEl.innerText = "Rules Error";
                 syncEl.className = "text-red-600 font-black text-xl uppercase tracking-tighter underline cursor-help leading-none";
             });
         };

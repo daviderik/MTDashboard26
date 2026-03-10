@@ -81,7 +81,7 @@
                     <div class="w-px h-12 bg-slate-950 dark:bg-slate-800"></div>
                     <div class="text-center min-w-[100px]">
                         <span class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Network</span>
-                        <span id="syncStatus" class="text-slate-400 font-black text-xl uppercase tracking-tighter">Ready</span>
+                        <span id="syncStatus" class="text-slate-400 font-black text-xl uppercase tracking-tighter">Syncing</span>
                     </div>
                 </div>
                 <button onclick="window.print()" class="bg-slate-950 dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-widest px-8 py-5 rounded-2xl hover:bg-slate-800 dark:hover:bg-slate-200 transition-all shadow-xl flex items-center justify-center gap-2">
@@ -147,7 +147,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- FIREBASE CONFIG (Already extracted from your screenshot) ---
+        // --- FIREBASE CONFIG (Pre-filled from your Firebase Project) ---
         const firebaseConfig = {
             apiKey: "AIzaSyBJdFbuzW_ywm2Q5QAEifYBNsOXqOetJM",
             authDomain: "mtdashboard-6500c.firebaseapp.com",
@@ -225,13 +225,8 @@
             document.getElementById('headerClientName').innerText = CONFIG.clientName;
             document.getElementById('headerYear').innerText = `${CONFIG.productionYear} Production`;
             
-            // Check for file:// protocol
-            if (window.location.protocol === 'file:') {
-                document.getElementById('syncStatus').innerText = "Preview Only";
-                document.getElementById('syncStatus').title = "Cloud sync requires a hosted URL (GitHub/Netlify)";
-            }
-
-            updateUI(); // Immediate render
+            // Render immediately so UI isn't blank
+            updateUI(); 
             initFirebase();
         });
 
@@ -251,9 +246,15 @@
 
                 await signInAnonymously(auth);
             } catch (e) {
-                console.error("Firebase startup error:", e);
-                document.getElementById('syncStatus').innerText = "Auth Error";
-                document.getElementById('syncStatus').className = "text-red-600 font-black text-xl uppercase tracking-tighter";
+                console.error("Firebase auth failed:", e);
+                // Help user identify authorized domain issues
+                if (e.code === 'auth/unauthorized-domain') {
+                    document.getElementById('syncStatus').innerText = "Domain Blocked";
+                    document.getElementById('syncStatus').title = `Add ${window.location.hostname} to Authorized Domains in Firebase Settings.`;
+                } else {
+                    document.getElementById('syncStatus').innerText = "Offline";
+                }
+                document.getElementById('syncStatus').className = "text-red-600 font-black text-xl uppercase tracking-tighter underline cursor-help";
             }
         }
 
@@ -269,7 +270,8 @@
             }, (error) => {
                 console.error("Sync error:", error);
                 document.getElementById('syncStatus').innerText = "Rules Error";
-                document.getElementById('syncStatus').className = "text-red-600 font-black text-xl uppercase tracking-tighter";
+                document.getElementById('syncStatus').title = "Check your Firestore Rules tab.";
+                document.getElementById('syncStatus').className = "text-red-600 font-black text-xl uppercase tracking-tighter underline cursor-help";
             });
         };
 
@@ -279,7 +281,7 @@
             } else {
                 completedProducts.push(id);
             }
-            updateUI(); // Local feedback
+            updateUI(); // Immediate local feedback
 
             if (auth && auth.currentUser) {
                 const docRef = doc(db, 'artifacts', CONFIG.appIdentifier, 'public', 'data', 'checklists', 'production_state');
@@ -318,7 +320,7 @@
             scheduleData.forEach((day, i) => {
                 const btn = document.getElementById(`dayBtn-${i}`);
                 if (btn) {
-                    btn.className = `flex-shrink-0 px-8 py-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center min-w-[130px] ${currentView === i ? 'tab-active' : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-950 dark:text-slate-500 hover:border-slate-950 dark:hover:border-slate-600 shadow-sm'}`;
+                    btn.className = `flex-shrink-0 px-8 py-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center min-w-[130px] ${currentView === i ? 'tab-active' : 'bg-white dark:bg-slate-900 border-slate-950 dark:border-slate-800 text-slate-950 dark:text-slate-500 hover:border-slate-950 dark:hover:border-slate-600 shadow-sm'}`;
                     btn.innerHTML = `<span class="text-[10px] uppercase font-black mb-1 opacity-60">Day ${day.day}</span><span class="text-xl font-black">${day.date.split(' ')[1]}</span><span class="text-[10px] uppercase font-bold tracking-widest">${CONFIG.monthName}</span>`;
                 }
             });
@@ -367,7 +369,7 @@
             document.getElementById('logisticsInfo').innerHTML = `
                 <div class="flex gap-7"><div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-slate-950 dark:bg-indigo-500/20 flex items-center justify-center text-white dark:text-indigo-400 shadow-xl border-2 border-slate-950"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div><div><span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Active Set</span><span class="text-slate-950 dark:text-white font-extrabold text-xl leading-tight">${loc}</span></div></div>
                 <div class="flex gap-7"><div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-950 dark:text-slate-300 border-2 border-slate-950 dark:border-slate-700 shadow-md"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Unit Call</span><span class="text-slate-950 dark:text-white font-extrabold text-xl uppercase tracking-tighter">${CONFIG.unitCall}</span></div></div>
-                <div class="flex gap-7"><div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-950 dark:text-slate-400"><span class="text-lg font-black">${videoCount}</span><span class="text-[8px] font-black uppercase">Video</span></div><div><span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Day Assets</span><span class="text-slate-950 dark:text-white font-extrabold text-lg leading-tight">${photoCount} Photo Units</span></div></div>
+                <div class="flex gap-7"><div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-950 dark:text-slate-400"><span class="text-lg font-black">${videoCount}</span><span class="text-[8px] font-black uppercase">Video</span></div><div><span class="block text-[11px] text-slate-600 dark:text-slate-500 uppercase font-black tracking-widest mb-1">Day Assets</span><span class="text-slate-950 dark:text-white font-extrabold text-xl leading-tight">${photoCount} Photo Units</span></div></div>
             `;
         }
 

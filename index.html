@@ -79,7 +79,7 @@
                         <span id="totalProductCount" class="text-slate-950 dark:text-white font-black text-3xl">18</span>
                     </div>
                     <div class="w-px h-12 bg-slate-950 dark:bg-slate-800"></div>
-                    <div class="text-center min-w-[110px]">
+                    <div class="text-center min-w-[120px]">
                         <span class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Network</span>
                         <span id="syncStatus" class="text-slate-400 font-black text-xl uppercase tracking-tighter">Syncing</span>
                     </div>
@@ -225,19 +225,9 @@
             document.getElementById('headerClientName').innerText = CONFIG.clientName;
             document.getElementById('headerYear').innerText = `${CONFIG.productionYear} Production`;
             
-            // Immediate forced render so user sees products even if network is pending
+            // Render immediately
             updateUI(); 
             initFirebase();
-
-            // Set a fallback if initializing hangs (usually due to Firebase script issues or domain blocks)
-            setTimeout(() => {
-                const syncEl = document.getElementById('syncStatus');
-                if (syncEl && syncEl.innerText === "Initializing") {
-                    syncEl.innerText = "Check Connection";
-                    syncEl.className = "text-amber-500 font-black text-xl uppercase tracking-tighter cursor-help";
-                    syncEl.title = "Connection is taking longer than expected. Check Firebase settings or whitelist domain.";
-                }
-            }, 6000);
         });
 
         async function initFirebase() {
@@ -260,15 +250,17 @@
                 console.error("Firebase auth failed:", e);
                 syncEl.className = "text-red-600 font-black text-xl uppercase tracking-tighter underline cursor-help";
                 
+                // Detailed diagnostic mapping
                 if (e.code === 'auth/unauthorized-domain') {
                     syncEl.innerText = "Domain Blocked";
-                    syncEl.title = `Domain [${window.location.hostname}] must be whitelisted in Firebase Settings > Authorized Domains.`;
+                    syncEl.title = `Domain [${window.location.hostname}] is not authorized in Firebase Console > Authentication > Settings > Authorized Domains.`;
                 } else if (e.code === 'auth/operation-not-allowed') {
                     syncEl.innerText = "Auth Disabled";
-                    syncEl.title = "Anonymous Auth must be toggled ENABLED in Firebase Console.";
+                    syncEl.title = "Anonymous Auth provider is not enabled in Firebase Console.";
                 } else {
-                    syncEl.innerText = `Auth Error`;
-                    syncEl.title = e.message || "Unknown Connection Error";
+                    // Force display of the specific error code to troubleshoot
+                    syncEl.innerText = `ERR: ${e.code.split('/')[1] || 'AUTH'}`;
+                    syncEl.title = e.message;
                 }
             }
         }
@@ -286,12 +278,13 @@
                 }
             }, (error) => {
                 console.error("Sync error:", error);
-                syncEl.innerText = "Rules Blocked";
-                syncEl.title = "Permission denied. Check Firestore Rules tab for read/write access.";
+                syncEl.innerText = "Rules Error";
+                syncEl.title = "Permission denied. Check Firestore Rules tab.";
                 syncEl.className = "text-red-600 font-black text-xl uppercase tracking-tighter underline cursor-help";
             });
         };
 
+        // EXPOSE TO GLOBAL
         window.toggleProduct = async (id) => {
             if (completedProducts.includes(id)) {
                 completedProducts = completedProducts.filter(item => item !== id);
@@ -315,7 +308,6 @@
             updateUI();
         };
 
-        // --- UI RENDERING LOGIC ---
         function updateUI() {
             const totalProducts = scheduleData.reduce((acc, day) => acc + day.products.length, 0);
             const totalProductsEl = document.getElementById('totalProductCount');
@@ -330,14 +322,12 @@
             if (percent === 100) document.getElementById('wrapToast').classList.remove('opacity-0', 'translate-y-20');
             else document.getElementById('wrapToast').classList.add('opacity-0', 'translate-y-20');
 
-            // Update Navigation state
             const nav = document.getElementById('dateNav');
             const mBtn = document.getElementById('masterBtn');
             if (mBtn) {
                 mBtn.className = `flex-shrink-0 px-8 py-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center min-w-[140px] ${currentView === 'master' ? 'tab-active' : 'bg-white dark:bg-slate-900 border-slate-950 dark:border-slate-800 text-slate-950 dark:text-slate-500 shadow-sm'}`;
             }
             
-            // Re-render Day Buttons if container exists and is empty
             if (nav && nav.children.length === 2) {
                 scheduleData.forEach((day, i) => {
                     const btn = document.createElement('button');
@@ -355,7 +345,6 @@
                 }
             });
 
-            // Re-render Product List
             const list = document.getElementById('productList');
             if (!list) return;
             list.innerHTML = '';
@@ -429,10 +418,6 @@
                 `;
             }
         }
-
-        // --- GLOBAL EXPOSURE ---
-        window.setDay = setDay;
-        window.toggleProduct = toggleProduct;
 
         const tToggle = document.getElementById('themeToggle');
         if (tToggle) {

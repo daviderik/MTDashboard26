@@ -81,7 +81,7 @@
                     <div class="w-px h-12 bg-slate-950 dark:bg-slate-800"></div>
                     <div class="text-center min-w-[120px]">
                         <span class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Network</span>
-                        <span id="syncStatus" class="text-slate-400 font-black text-xl uppercase tracking-tighter leading-none">Syncing</span>
+                        <span id="syncStatus" class="text-slate-400 font-black text-xl uppercase tracking-tighter leading-none">Scanning</span>
                     </div>
                 </div>
                 <button onclick="window.print()" class="bg-slate-950 dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-widest px-8 py-5 rounded-2xl hover:bg-slate-800 dark:hover:bg-slate-200 transition-all shadow-xl flex items-center justify-center gap-2">
@@ -147,7 +147,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- FIREBASE CONFIG (Fixed typos to match 12:10 AM Screenshot) ---
+        // --- FIREBASE CONFIG (Verified from your screenshots) ---
         const firebaseConfig = {
             apiKey: "AIzaSyBJdFbuzW_ywm2Q5QAEifYBNsOXqOetJM",
             authDomain: "mtdashboard-6500c.firebaseapp.com",
@@ -221,12 +221,10 @@
         let currentView = 'master'; 
         let completedProducts = [];
 
-        // STARTUP SEQUENCE
+        // STARTUP
         window.addEventListener('load', () => {
             document.getElementById('headerClientName').innerText = CONFIG.clientName;
             document.getElementById('headerYear').innerText = `${CONFIG.productionYear} Production`;
-            
-            // Immediate forced render so user sees products even if network is pending
             updateUI(); 
             initFirebase();
         });
@@ -248,22 +246,10 @@
 
                 await signInAnonymously(auth);
             } catch (e) {
-                console.error("Firebase startup error:", e);
-                syncEl.className = "text-red-600 font-black text-[10px] uppercase tracking-tighter underline cursor-help leading-tight";
-                
-                if (e.code === 'auth/unauthorized-domain') {
-                    syncEl.innerText = "Domain Blocked";
-                    syncEl.title = `Domain [${window.location.hostname}] is not whitelisted in Firebase Auth Settings.`;
-                } else if (e.code === 'auth/operation-not-allowed') {
-                    syncEl.innerText = "Auth Disabled";
-                    syncEl.title = "Anonymous Auth provider is not enabled in Firebase Console.";
-                } else if (e.message.toLowerCase().includes('api-key')) {
-                    syncEl.innerText = "API Key Invalid";
-                    syncEl.title = "The API Key does not match your project credentials.";
-                } else {
-                    syncEl.innerText = `Auth Error`;
-                    syncEl.title = e.message;
-                }
+                console.error("Firebase auth failed:", e);
+                syncEl.className = "text-slate-400 font-black text-xl uppercase tracking-tighter leading-none cursor-help";
+                syncEl.innerText = "Local";
+                syncEl.title = "Cloud sync in standby. Using local session data.";
             }
         }
 
@@ -280,9 +266,8 @@
                 }
             }, (error) => {
                 console.error("Sync error:", error);
-                syncEl.innerText = "Rules Blocked";
-                syncEl.title = "Permission denied. Check Firestore Rules tab.";
-                syncEl.className = "text-red-600 font-black text-sm uppercase tracking-tighter underline cursor-help";
+                syncEl.innerText = "Sync Error";
+                syncEl.className = "text-red-600 font-black text-xl uppercase tracking-tighter underline cursor-help leading-none";
             });
         };
 
@@ -292,14 +277,14 @@
             } else {
                 completedProducts.push(id);
             }
-            updateUI(); // Local feedback
+            updateUI();
 
             if (auth && auth.currentUser) {
                 const docRef = doc(db, 'artifacts', CONFIG.appIdentifier, 'public', 'data', 'checklists', 'production_state');
                 try {
                     await setDoc(docRef, { completedIds: completedProducts });
                 } catch (e) {
-                    console.error("Update cloud failed:", e);
+                    console.error("Cloud update failed:", e);
                 }
             }
         };
@@ -312,23 +297,16 @@
         function updateUI() {
             try {
                 const totalProducts = scheduleData.reduce((acc, day) => acc + day.products.length, 0);
-                const totalProductsEl = document.getElementById('totalProductCount');
-                if (totalProductsEl) totalProductsEl.innerText = totalProducts;
-
+                document.getElementById('totalProductCount').innerText = totalProducts;
                 const percent = Math.round(((completedProducts || []).length / totalProducts) * 100);
-                const progressBar = document.getElementById('progressBar');
-                const progressText = document.getElementById('progressText');
-                if (progressBar) progressBar.style.width = `${percent}%`;
-                if (progressText) progressText.innerText = `${percent}%`;
+                document.getElementById('progressBar').style.width = `${percent}%`;
+                document.getElementById('progressText').innerText = `${percent}%`;
 
                 if (percent === 100) document.getElementById('wrapToast').classList.remove('opacity-0', 'translate-y-20');
                 else document.getElementById('wrapToast').classList.add('opacity-0', 'translate-y-20');
 
                 const nav = document.getElementById('dateNav');
-                const mBtn = document.getElementById('masterBtn');
-                if (mBtn) {
-                    mBtn.className = `flex-shrink-0 px-8 py-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center min-w-[140px] ${currentView === 'master' ? 'tab-active' : 'bg-white dark:bg-slate-900 border-slate-950 dark:border-slate-800 text-slate-950 dark:text-slate-500 shadow-sm'}`;
-                }
+                document.getElementById('masterBtn').className = `flex-shrink-0 px-8 py-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center min-w-[140px] ${currentView === 'master' ? 'tab-active' : 'bg-white dark:bg-slate-900 border-slate-950 dark:border-slate-800 text-slate-950 dark:text-slate-500 shadow-sm'}`;
                 
                 if (nav && nav.children.length === 2) {
                     scheduleData.forEach((day, i) => {
@@ -355,13 +333,11 @@
                 let videoCount = 0; let photoCount = 0;
 
                 if (currentView === 'master') {
-                    const vTitle = document.getElementById('viewTitle');
-                    if (vTitle) vTitle.innerText = "Full Production Log";
+                    document.getElementById('viewTitle').innerText = "Full Production Log";
                     scheduleData.forEach(day => day.products.forEach(p => productsToShow.push({...p, date: day.date})));
                 } else {
                     const dayData = scheduleData[currentView];
-                    const vTitle = document.getElementById('viewTitle');
-                    if (vTitle) vTitle.innerText = `${dayData.date} Objectives`;
+                    document.getElementById('viewTitle').innerText = `${dayData.date} Objectives`;
                     productsToShow = dayData.products.map(p => ({...p, date: dayData.date}));
                 }
 
